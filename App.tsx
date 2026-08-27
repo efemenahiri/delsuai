@@ -485,7 +485,7 @@ const App: React.FC = () => {
                 <span className="text-sm font-semibold">DELSU Abraka</span>
               </div>
               <p className="text-xs text-blue-600/80 leading-relaxed">
-                Empowering campus mobility through AI. Final Year Project © 2024
+                Empowering campus mobility through AI. Final Year Project © 2026
               </p>
             </div>
           </div>
