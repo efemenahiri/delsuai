@@ -14,14 +14,16 @@ import {
   LogIn,
   LogOut,
   MailCheck,
-  ExternalLink
+  ExternalLink,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { Location, Message, User } from './types';
 import { DELSU_LOCATIONS } from './data/locations';
 import { getCampusAssistance } from './services/gemini';
 import { authService } from './services/auth';
 
-// Helper Components
+// Helper Component for Sidebar Items
 const SidebarItem = ({
   icon: Icon,
   label,
@@ -36,8 +38,8 @@ const SidebarItem = ({
   <button
     onClick={onClick}
     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${active
-      ? 'bg-blue-600 text-white shadow-lg'
-      : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
+        ? 'bg-blue-600 text-white shadow-lg'
+        : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
       }`}
   >
     <Icon size={20} />
@@ -46,7 +48,7 @@ const SidebarItem = ({
 );
 
 const App: React.FC = () => {
-  // STATE
+  // NAVIGATION & UI STATE
   const [activeTab, setActiveTab] = useState<'map' | 'assistant' | 'academic'>('assistant');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +60,7 @@ const App: React.FC = () => {
 
   const userMarkerRef = useRef<any>(null);
 
+  // CHAT STATE
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -86,7 +89,7 @@ const App: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Theme
+  // Initialize Dark / Light Theme
   useEffect(() => {
     if (isDarkMode) {
       document.body.classList.add('dark-mode');
@@ -97,7 +100,7 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
-  // Scroll Chat
+  // Scroll Chat to Bottom on New Message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -117,38 +120,29 @@ const App: React.FC = () => {
   useEffect(() => {
     const google = (window as any).google;
 
-    if (
-      mapContainerRef.current &&
-      !googleMapInstance.current &&
-      google?.maps
-    ) {
+    if (mapContainerRef.current && !googleMapInstance.current && google?.maps) {
       const map = new google.maps.Map(mapContainerRef.current, {
         center: { lat: 5.7952, lng: 6.1068 },
         zoom: 16,
-        disableDefaultUI: false,
-        zoomControl: true,
+        disableDefaultUI: true, // Clean clutter-free UI for mobile
+        zoomControl: false,
+        fullscreenControl: false,
+        mapTypeControl: false,
+        streetViewControl: false,
       });
 
       googleMapInstance.current = map;
 
       if (selectedLocation) {
         const marker = new google.maps.Marker({
-          position: {
-            lat: selectedLocation.lat,
-            lng: selectedLocation.lng,
-          },
+          position: { lat: selectedLocation.lat, lng: selectedLocation.lng },
           map,
           title: selectedLocation.name,
           animation: google.maps.Animation.DROP,
         });
 
         markersRef.current.push(marker);
-
-        map.panTo({
-          lat: selectedLocation.lat,
-          lng: selectedLocation.lng,
-        });
-
+        map.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
         map.setZoom(18);
       }
 
@@ -156,7 +150,7 @@ const App: React.FC = () => {
     }
   }, [selectedLocation]);
 
-  // Trigger resize calculation when map tab becomes visible
+  // Resize calculation when switching to map tab
   useEffect(() => {
     if (activeTab === 'map' && googleMapInstance.current) {
       const google = (window as any).google;
@@ -169,7 +163,7 @@ const App: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Handle Location Sync
+  // Pan to Selected Location
   useEffect(() => {
     if (googleMapInstance.current && selectedLocation) {
       googleMapInstance.current.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
@@ -177,7 +171,7 @@ const App: React.FC = () => {
     }
   }, [selectedLocation]);
 
-  // Get user's current GPS location
+  // Get user's current GPS position
   const getUserLocation = () => {
     if (!navigator.geolocation) {
       alert('Location services are not supported by this browser.');
@@ -201,7 +195,7 @@ const App: React.FC = () => {
           googleMapInstance.current.setZoom(18);
         }
       },
-      (error) => {
+      () => {
         setLocationLoading(false);
         alert('Please enable location permissions in your browser settings.');
       },
@@ -213,7 +207,7 @@ const App: React.FC = () => {
     );
   };
 
-  // Display user's GPS position marker
+  // Render User GPS Marker
   useEffect(() => {
     if (!googleMapInstance.current || !userLocation) return;
 
@@ -246,7 +240,14 @@ const App: React.FC = () => {
     };
   }, [userLocation, mapLoaded]);
 
-  // --- REDIRECT TO GOOGLE MAPS FOR TURN-BY-TURN NAVIGATION ---
+  // Handle Custom Map Zoom
+  const handleZoom = (direction: 'in' | 'out') => {
+    if (!googleMapInstance.current) return;
+    const currentZoom = googleMapInstance.current.getZoom();
+    googleMapInstance.current.setZoom(direction === 'in' ? currentZoom + 1 : currentZoom - 1);
+  };
+
+  // Turn-by-turn Navigation in External Google Maps
   const handleOpenExternalGoogleMaps = (location: Location) => {
     let mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}&travelmode=walking&dir_action=navigate`;
 
@@ -257,6 +258,7 @@ const App: React.FC = () => {
     window.open(mapsUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // Auth Form Handler
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -295,6 +297,7 @@ const App: React.FC = () => {
     setCurrentUser(null);
   };
 
+  // Send Chat Message
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
@@ -363,7 +366,10 @@ const App: React.FC = () => {
                   {authMode === 'forgot' && 'Reset Password'}
                   {authMode === 'reset' && 'Create New Password'}
                 </h2>
-                <button onClick={() => { setIsAuthModalOpen(false); setAuthError(''); setAuthSuccess(''); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
+                <button
+                  onClick={() => { setIsAuthModalOpen(false); setAuthError(''); setAuthSuccess(''); }}
+                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400"
+                >
                   <X size={20} />
                 </button>
               </div>
@@ -412,20 +418,26 @@ const App: React.FC = () => {
                 )}
 
                 {authError && <div className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-lg">{authError}</div>}
-                {authSuccess && <div className="text-emerald-600 text-xs font-bold bg-emerald-50 p-3 rounded-lg flex items-center gap-2">
-                  <MailCheck size={16} />
-                  {authSuccess}
-                </div>}
+                {authSuccess && (
+                  <div className="text-emerald-600 text-xs font-bold bg-emerald-50 p-3 rounded-lg flex items-center gap-2">
+                    <MailCheck size={16} />
+                    {authSuccess}
+                  </div>
+                )}
 
                 <button
                   disabled={isLoading}
                   className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
                 >
-                  {isLoading ? 'Processing...' : (
-                    authMode === 'login' ? 'Sign In' :
-                      authMode === 'signup' ? 'Create Account' :
-                        authMode === 'forgot' ? 'Send Reset Link' : 'Update Password'
-                  )}
+                  {isLoading
+                    ? 'Processing...'
+                    : authMode === 'login'
+                      ? 'Sign In'
+                      : authMode === 'signup'
+                        ? 'Create Account'
+                        : authMode === 'forgot'
+                          ? 'Send Reset Link'
+                          : 'Update Password'}
                 </button>
               </form>
             </div>
@@ -442,7 +454,10 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-50 transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-50 transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+      >
         <div className="flex flex-col h-full">
           <div className="p-6 flex items-center space-x-3 border-b border-slate-100">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -485,7 +500,7 @@ const App: React.FC = () => {
                 <span className="text-sm font-semibold">DELSU Abraka</span>
               </div>
               <p className="text-xs text-blue-600/80 leading-relaxed">
-                Empowering campus mobility through AI. Final Year Project © 2026
+                Empowering campus mobility through AI. Final Year Project © 2024
               </p>
             </div>
           </div>
@@ -494,13 +509,13 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative">
-        {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30">
+        {/* Header - Configured with Mobile Safe Padding */}
+        <header className="h-16 pt-2 pb-2 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
           <button
-            className="lg:hidden text-slate-500 hover:text-slate-900"
+            className="lg:hidden text-slate-600 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100"
             onClick={() => setIsSidebarOpen(true)}
           >
-            <Menu size={24} />
+            <Menu size={22} />
           </button>
 
           <div className="flex-1 max-w-xl mx-auto px-4 lg:block hidden relative" ref={searchRef}>
@@ -564,10 +579,10 @@ const App: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500"
+              className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-600"
               title="Toggle Theme"
             >
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -581,10 +596,10 @@ const App: React.FC = () => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-colors"
+                  className="w-9 h-9 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-colors"
                   title="Logout"
                 >
-                  <LogOut size={18} />
+                  <LogOut size={16} />
                 </button>
               </div>
             ) : (
@@ -601,8 +616,9 @@ const App: React.FC = () => {
 
         {/* Tab Content */}
         <div className="flex-1 overflow-hidden relative">
+          {/* AI ASSISTANT TAB */}
           <div className={`h-full flex flex-col ${activeTab === 'assistant' ? 'block' : 'hidden'}`}>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
               <div className="max-w-3xl mx-auto space-y-6">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -659,18 +675,40 @@ const App: React.FC = () => {
             </div>
           </div>
 
+          {/* CAMPUS MAP TAB */}
           <div className={`h-full flex flex-col md:flex-row relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
             <div className="flex-1 relative h-full">
               <div ref={mapContainerRef} className="w-full h-full" />
-              <button
-                onClick={getUserLocation}
-                className="absolute top-4 right-4 bg-white shadow-lg text-slate-700 font-bold py-2 px-4 rounded-xl flex items-center space-x-2 text-xs hover:bg-slate-50 z-10"
-              >
-                <Navigation size={16} className="text-blue-600" />
-                <span>{locationLoading ? 'Locating...' : 'My Location'}</span>
-              </button>
+
+              {/* Top Controls Overlay */}
+              <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
+                <button
+                  onClick={getUserLocation}
+                  className="bg-white/90 backdrop-blur-md shadow-lg text-slate-700 font-bold py-2.5 px-4 rounded-xl flex items-center space-x-2 text-xs hover:bg-white transition-all border border-slate-200"
+                >
+                  <Navigation size={16} className="text-blue-600" />
+                  <span>{locationLoading ? 'Locating...' : 'My Location'}</span>
+                </button>
+              </div>
+
+              {/* Custom Clean Zoom Buttons for Mobile */}
+              <div className="absolute bottom-6 right-4 flex flex-col space-y-2 z-10">
+                <button
+                  onClick={() => handleZoom('in')}
+                  className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-white"
+                >
+                  <Plus size={18} />
+                </button>
+                <button
+                  onClick={() => handleZoom('out')}
+                  className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-white"
+                >
+                  <Minus size={18} />
+                </button>
+              </div>
             </div>
 
+            {/* Selected Location Details Panel */}
             {selectedLocation && (
               <div className="w-full md:w-80 bg-white border-l border-slate-200 p-6 flex flex-col space-y-4">
                 <h3 className="text-lg font-bold text-slate-900">{selectedLocation.name}</h3>
@@ -691,6 +729,7 @@ const App: React.FC = () => {
             )}
           </div>
 
+          {/* ACADEMIC DOCS TAB */}
           <div className={`p-8 max-w-4xl mx-auto space-y-4 ${activeTab === 'academic' ? 'block' : 'hidden'}`}>
             <h2 className="text-2xl font-bold text-slate-900">Academic Docs</h2>
             <p className="text-slate-600">DELSU Abraka Intelligent Campus Guidance Platform Documentation.</p>
