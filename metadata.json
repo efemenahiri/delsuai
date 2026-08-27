@@ -1,0 +1,7 @@
+{
+  "name": "DelsuAI: Campus Navigation & Assistance System",
+  "description": "An AI-powered intelligent navigation system for Delta State University (DELSU), Abraka, featuring real-time assistance, interactive mapping, and a comprehensive campus database.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
