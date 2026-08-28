@@ -38,8 +38,8 @@ const SidebarItem = ({
   <button
     onClick={onClick}
     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${active
-        ? 'bg-blue-600 text-white shadow-lg'
-        : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
+      ? 'bg-blue-600 text-white shadow-lg'
+      : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
       }`}
   >
     <Icon size={20} />
@@ -500,7 +500,7 @@ const App: React.FC = () => {
                 <span className="text-sm font-semibold">DELSU Abraka</span>
               </div>
               <p className="text-xs text-blue-600/80 leading-relaxed">
-                Empowering campus mobility through AI. Final Year Project © 2024
+                Empowering campus mobility through AI. Final Year Project © 2026
               </p>
             </div>
           </div>

@@ -5,20 +5,25 @@ import { Message } from '../types';
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-// Standard stop words to ignore during fallback matching
-const STOP_WORDS = new Set(['where', 'is', 'the', 'of', 'at', 'in', 'to', 'faculty', 'department', 'building']);
+// Stop words to filter out during location search
+const STOP_WORDS = new Set([
+  'where', 'is', 'the', 'of', 'at', 'in', 'to', 'faculty', 'department',
+  'building', 'find', 'locate', 'show', 'me', 'how', 'get', 'delsu', 'could', 'you', 'direct',
+  'can', 'please', 'tell', 'way', 'going', 'doing'
+]);
 
 export async function getCampusAssistance(userPrompt: string, chatHistory: Message[]) {
-  // 1. Live Gemini API Call (if API key is present)
+  // 1. Primary Engine: Live Gemini API (Handles all conversational nuance seamlessly)
   if (genAI) {
     try {
-      const model = genAI.getGenerativeModel({ 
+      const model = genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
         generationConfig: { responseMimeType: 'application/json' },
-        systemInstruction: `You are DelsuAI, an intelligent campus guide for Delta State University (DELSU), Abraka. 
-        Provide helpful, natural responses about campus locations and navigation based on the dataset.
+        systemInstruction: `You are DelsuAI, a friendly and intelligent campus guide for Delta State University (DELSU), Abraka. 
+        Handle all greetings, small talk, pleasantries, and general chit-chat warmly and naturally.
+        When users ask for locations or directions, reference the provided campus dataset to give accurate guidance.
         
-        Locations Dataset:
+        Campus Locations Dataset:
         ${JSON.stringify(DELSU_LOCATIONS)}`
       });
 
@@ -30,10 +35,10 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
       const chat = model.startChat({ history: formattedHistory });
 
       const prompt = `User Query: "${userPrompt}". 
-      Respond with a JSON object:
+      Respond strictly with a JSON object:
       {
-        "answer": "Clear directions or information about the queried place.",
-        "suggestedLocationId": "Matching ID string from dataset or null"
+        "answer": "Your natural, helpful response here.",
+        "suggestedLocationId": "Matching location ID string from dataset or null"
       }`;
 
       const result = await chat.sendMessage(prompt);
@@ -44,15 +49,35 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
         suggestedLocationId: parsed.suggestedLocationId || null
       };
     } catch (error) {
-      console.warn('Gemini API call failed; using local search engine:', error);
+      console.warn('Gemini API request failed. Falling back to universal local engine:', error);
     }
   }
 
-  // 2. High-Accuracy Local Match Engine
-  const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  // 2. Secondary Engine: Universal Local Intent & Pattern Classifier
+  const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
   const cleanQuery = normalize(userPrompt);
-  
-  // Extract essential keywords by excluding stop words
+
+  // Classify Intent: Universal Greeting Matcher (handles hi, hii, hello, sup, wassup, howfa, etc.)
+  const isGreeting = /^(h[ea]+ll?o+|h+i+|h+e+y+|h+e+y+a|sup|w+a+s+u+p+|h+o+w+f+a+r?|yo+|greetings|good\s*(morning|afternoon|evening))/i.test(cleanQuery);
+
+  // Classify Intent: Gratitude & Pleasantries (handles thanks, thank you, cool, awesome, how are you, etc.)
+  const isGratitudeOrPleasantry = /^(th+a+n+k+s?|thx|cool|awesome|great|ok|okay|alright|how\s*are\s*you|how\s*is\s*your\s*day)/i.test(cleanQuery);
+
+  if (isGreeting) {
+    return {
+      answer: "Hey there! 👋 I'm ready to guide you around DELSU Abraka. What location or department are you looking for today?",
+      suggestedLocationId: null
+    };
+  }
+
+  if (isGratitudeOrPleasantry) {
+    return {
+      answer: "Always happy to help! 😊 Let me know whenever you need directions to another campus location.",
+      suggestedLocationId: null
+    };
+  }
+
+  // Intent: Campus Location Keyword Search
   const keywords = cleanQuery.split(/\s+/).filter(word => word.length > 1 && !STOP_WORDS.has(word));
 
   let bestMatch = null;
@@ -64,10 +89,8 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
     const categoryNorm = normalize(loc.category);
     const aliasesNorm = loc.aliases.map(normalize);
 
-    // Direct full-name match gets highest priority
     if (cleanQuery.includes(nameNorm)) score += 10;
 
-    // Evaluate keyword presence
     keywords.forEach(word => {
       if (nameNorm.includes(word)) score += 5;
       if (aliasesNorm.some(alias => alias.includes(word))) score += 4;
@@ -80,14 +103,14 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
     }
   }
 
-  // Require a minimal confidence threshold
-  if (bestMatch && maxScore >= 4) {
+  if (bestMatch && maxScore >= 3) {
     return {
-      answer: `${bestMatch.name} is located in the ${bestMatch.category} section. ${bestMatch.description}`,
+      answer: `📍 **${bestMatch.name}** is located in the ${bestMatch.category} area.\n\n${bestMatch.description}\n\nTap below to center it on your map!`,
       suggestedLocationId: bestMatch.id
     };
   }
 
+  // Fallback for unrecognized queries
   return {
     answer: `I couldn't locate "${userPrompt}" in the campus directory. Try typing the exact department name, e.g., "Faculty of Education" or "Library".`,
     suggestedLocationId: null
