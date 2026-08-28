@@ -18,7 +18,9 @@ import {
   Plus,
   Minus,
   Eye,
-  EyeOff
+  EyeOff,
+  Send,
+  Loader2
 } from 'lucide-react';
 import { Location, Message, User } from './types';
 import { DELSU_LOCATIONS } from './data/locations';
@@ -39,13 +41,14 @@ const SidebarItem = ({
 }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${active
-      ? 'bg-blue-600 text-white shadow-lg'
-      : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
-      }`}
+    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
+      active
+        ? 'bg-blue-600 text-white shadow-lg'
+        : 'text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-800 hover:text-blue-600'
+    }`}
   >
     <Icon size={20} />
-    <span className="font-medium">{label}</span>
+    <span className="font-medium text-sm">{label}</span>
   </button>
 );
 
@@ -103,9 +106,11 @@ const App: React.FC = () => {
   // Initialize Dark / Light Theme
   useEffect(() => {
     if (isDarkMode) {
+      document.documentElement.classList.add('dark');
       document.body.classList.add('dark-mode');
       localStorage.setItem('theme', 'dark');
     } else {
+      document.documentElement.classList.remove('dark');
       document.body.classList.remove('dark-mode');
       localStorage.setItem('theme', 'light');
     }
@@ -114,7 +119,7 @@ const App: React.FC = () => {
   // Scroll Chat to Bottom on New Message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   // Handle Search Outside Clicks
   useEffect(() => {
@@ -135,7 +140,7 @@ const App: React.FC = () => {
       const map = new google.maps.Map(mapContainerRef.current, {
         center: { lat: 5.7952, lng: 6.1068 },
         zoom: 16,
-        disableDefaultUI: true, // Clean clutter-free UI for mobile
+        disableDefaultUI: true,
         zoomControl: false,
         fullscreenControl: false,
         mapTypeControl: false,
@@ -144,22 +149,24 @@ const App: React.FC = () => {
 
       googleMapInstance.current = map;
 
-      if (selectedLocation) {
+      // Populate Campus Location Markers
+      DELSU_LOCATIONS.forEach((loc) => {
         const marker = new google.maps.Marker({
-          position: { lat: selectedLocation.lat, lng: selectedLocation.lng },
+          position: { lat: loc.lat, lng: loc.lng },
           map,
-          title: selectedLocation.name,
-          animation: google.maps.Animation.DROP,
+          title: loc.name,
+        });
+
+        marker.addListener('click', () => {
+          setSelectedLocation(loc);
         });
 
         markersRef.current.push(marker);
-        map.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
-        map.setZoom(18);
-      }
+      });
 
       setMapLoaded(true);
     }
-  }, [selectedLocation]);
+  }, []);
 
   // Resize calculation when switching to map tab
   useEffect(() => {
@@ -169,10 +176,11 @@ const App: React.FC = () => {
         google.maps.event.trigger(googleMapInstance.current, 'resize');
         if (selectedLocation) {
           googleMapInstance.current.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
+          googleMapInstance.current.setZoom(18);
         }
       }
     }
-  }, [activeTab]);
+  }, [activeTab, selectedLocation]);
 
   // Pan to Selected Location
   useEffect(() => {
@@ -182,10 +190,10 @@ const App: React.FC = () => {
     }
   }, [selectedLocation]);
 
-  // Get user's current GPS position
+  // Get user's current GPS position (Works on Web & Android via Capacitor/WebView Bridge)
   const getUserLocation = () => {
     if (!navigator.geolocation) {
-      alert('Location services are not supported by this browser.');
+      alert('Location services are not supported by this device.');
       return;
     }
 
@@ -206,9 +214,10 @@ const App: React.FC = () => {
           googleMapInstance.current.setZoom(18);
         }
       },
-      () => {
+      (err) => {
         setLocationLoading(false);
-        alert('Please enable location permissions in your browser settings.');
+        console.warn(`GPS Error (${err.code}): ${err.message}`);
+        alert('Please enable location permissions in your app settings.');
       },
       {
         enableHighAccuracy: true,
@@ -258,15 +267,15 @@ const App: React.FC = () => {
     googleMapInstance.current.setZoom(direction === 'in' ? currentZoom + 1 : currentZoom - 1);
   };
 
-  // Turn-by-turn Navigation in External Google Maps
+  // Turn-by-turn Navigation in External Maps (Supports Intent URL scheme for native Android Maps)
   const handleOpenExternalGoogleMaps = (location: Location) => {
-    let mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}&travelmode=walking&dir_action=navigate`;
+    let mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}&travelmode=walking`;
 
     if (userLocation) {
       mapsUrl += `&origin=${userLocation.lat},${userLocation.lng}`;
     }
 
-    window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+    window.open(mapsUrl, '_system');
   };
 
   // Auth Form Handler
@@ -297,7 +306,7 @@ const App: React.FC = () => {
         setAuthFormData({ fullName: '', email: '', password: '', role: 'student', token: '' });
       }
     } catch (err: any) {
-      setAuthError(err.message);
+      setAuthError(err.message || 'Authentication failed');
     } finally {
       setIsLoading(false);
     }
@@ -364,11 +373,11 @@ const App: React.FC = () => {
     : [];
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* IMPROVED AUTH MODAL */}
+    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden text-slate-800 dark:text-slate-100">
+      {/* AUTH MODAL */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
             {/* Header Branding */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative">
               <button
@@ -399,11 +408,11 @@ const App: React.FC = () => {
                 {/* Full Name (Sign Up only) */}
                 {authMode === 'signup' && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Full Name</label>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Full Name</label>
                     <input
                       required
                       type="text"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-950 transition-all outline-none text-sm"
                       placeholder="Your full name"
                       value={authFormData.fullName}
                       onChange={(e) => setAuthFormData({ ...authFormData, fullName: e.target.value })}
@@ -414,25 +423,27 @@ const App: React.FC = () => {
                 {/* Role Selector (Sign Up only) */}
                 {authMode === 'signup' && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Role</label>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Role</label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setAuthFormData({ ...authFormData, role: 'student' })}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${authFormData.role === 'student'
-                          ? 'bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          authFormData.role === 'student'
+                            ? 'bg-blue-50 dark:bg-blue-950 border-blue-500 text-blue-600 dark:text-blue-400'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
                       >
                         Student
                       </button>
                       <button
                         type="button"
                         onClick={() => setAuthFormData({ ...authFormData, role: 'staff' })}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${authFormData.role === 'staff'
-                          ? 'bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          authFormData.role === 'staff'
+                            ? 'bg-blue-50 dark:bg-blue-950 border-blue-500 text-blue-600 dark:text-blue-400'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
                       >
                         Staff / Lecturer
                       </button>
@@ -443,11 +454,11 @@ const App: React.FC = () => {
                 {/* Email Input */}
                 {(authMode === 'login' || authMode === 'signup' || authMode === 'forgot') && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Campus Email</label>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Campus Email</label>
                     <input
                       required
                       type="email"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-950 transition-all outline-none text-sm"
                       placeholder="email@delsu.edu.ng"
                       value={authFormData.email}
                       onChange={(e) => setAuthFormData({ ...authFormData, email: e.target.value })}
@@ -459,12 +470,12 @@ const App: React.FC = () => {
                 {(authMode === 'login' || authMode === 'signup' || authMode === 'reset') && (
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Password</label>
                       {authMode === 'login' && (
                         <button
                           type="button"
                           onClick={() => switchAuthMode('forgot')}
-                          className="text-xs font-bold text-blue-600 hover:underline"
+                          className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           Forgot?
                         </button>
@@ -474,7 +485,7 @@ const App: React.FC = () => {
                       <input
                         required
                         type={showPassword ? 'text' : 'password'}
-                        className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                        className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-950 transition-all outline-none text-sm"
                         placeholder="••••••••"
                         value={authFormData.password}
                         onChange={(e) => setAuthFormData({ ...authFormData, password: e.target.value })}
@@ -493,11 +504,11 @@ const App: React.FC = () => {
                 {/* Token Input for Reset */}
                 {authMode === 'reset' && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Reset Token</label>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Reset Token</label>
                     <input
                       required
                       type="text"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-950 transition-all outline-none text-sm"
                       placeholder="Enter reset token"
                       value={authFormData.token}
                       onChange={(e) => setAuthFormData({ ...authFormData, token: e.target.value })}
@@ -507,14 +518,14 @@ const App: React.FC = () => {
 
                 {/* Error Banner */}
                 {authError && (
-                  <div className="text-red-600 text-xs font-semibold bg-red-50 border border-red-100 p-3 rounded-xl">
+                  <div className="text-red-600 text-xs font-semibold bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 p-3 rounded-xl">
                     ⚠️ {authError}
                   </div>
                 )}
 
                 {/* Success Banner */}
                 {authSuccess && (
-                  <div className="text-emerald-700 text-xs font-semibold bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex items-center gap-2">
+                  <div className="text-emerald-700 dark:text-emerald-400 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900 p-3 rounded-xl flex items-center gap-2">
                     <MailCheck size={16} />
                     <span>{authSuccess}</span>
                   </div>
@@ -538,14 +549,14 @@ const App: React.FC = () => {
               </form>
 
               {/* Toggle Routes */}
-              <div className="mt-6 pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-700 text-center text-xs text-slate-500">
                 {authMode === 'login' && (
                   <p>
                     Don't have an account?{' '}
                     <button
                       type="button"
                       onClick={() => switchAuthMode('signup')}
-                      className="font-bold text-blue-600 hover:underline ml-1"
+                      className="font-bold text-blue-600 dark:text-blue-400 hover:underline ml-1"
                     >
                       Sign Up
                     </button>
@@ -557,7 +568,7 @@ const App: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => switchAuthMode('login')}
-                      className="font-bold text-blue-600 hover:underline ml-1"
+                      className="font-bold text-blue-600 dark:text-blue-400 hover:underline ml-1"
                     >
                       Sign In
                     </button>
@@ -567,7 +578,7 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => switchAuthMode('login')}
-                    className="font-bold text-blue-600 hover:underline"
+                    className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     ← Back to Sign In
                   </button>
@@ -588,17 +599,18 @@ const App: React.FC = () => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-50 transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 z-50 transition-transform duration-300 lg:relative lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         <div className="flex flex-col h-full">
-          <div className="p-6 flex items-center space-x-3 border-b border-slate-100">
+          <div className="p-6 flex items-center space-x-3 border-b border-slate-100 dark:border-slate-700">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
               <Navigation size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">DelsuAI</h1>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-widest">Campus Guide</p>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">DelsuAI</h1>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Campus Guide</p>
             </div>
           </div>
 
@@ -626,13 +638,13 @@ const App: React.FC = () => {
             />
           </nav>
 
-          <div className="p-4 border-t border-slate-100">
-            <div className="bg-blue-50 rounded-xl p-4">
-              <div className="flex items-center space-x-2 text-blue-700 mb-1">
+          <div className="p-4 border-t border-slate-100 dark:border-slate-700">
+            <div className="bg-blue-50 dark:bg-slate-900/50 rounded-xl p-4 border border-blue-100/50 dark:border-slate-700">
+              <div className="flex items-center space-x-2 text-blue-700 dark:text-blue-400 mb-1">
                 <School size={16} />
                 <span className="text-sm font-semibold">DELSU Abraka</span>
               </div>
-              <p className="text-xs text-blue-600/80 leading-relaxed">
+              <p className="text-xs text-blue-600/80 dark:text-slate-400 leading-relaxed">
                 Empowering campus mobility through AI. Final Year Project © 2026
               </p>
             </div>
@@ -641,11 +653,11 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative">
-        {/* Header - Configured with Mobile Safe Padding */}
-        <header className="h-16 pt-2 pb-2 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 relative">
+        {/* Header with Mobile Native Safe Padding */}
+        <header className="h-16 pt-2 pb-2 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
           <button
-            className="lg:hidden text-slate-600 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100"
+            className="lg:hidden text-slate-600 dark:text-slate-300 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
             onClick={() => setIsSidebarOpen(true)}
           >
             <Menu size={22} />
@@ -657,7 +669,7 @@ const App: React.FC = () => {
               <input
                 type="text"
                 placeholder="Search campus locations..."
-                className="w-full bg-slate-100 border-transparent focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 rounded-xl py-2 pl-10 pr-4 text-sm transition-all outline-none"
+                className="w-full bg-slate-100 dark:bg-slate-900 border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 dark:focus:ring-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm transition-all outline-none"
                 value={searchQuery}
                 onFocus={() => setShowSearchSuggestions(true)}
                 onChange={(e) => {
@@ -670,7 +682,7 @@ const App: React.FC = () => {
 
             {/* Search Suggestions Dropdown */}
             {showSearchSuggestions && searchQuery.trim() && (
-              <div className="absolute top-full left-4 right-4 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50">
+              <div className="absolute top-full left-4 right-4 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden z-50">
                 <div className="p-2">
                   {filteredLocations.length > 0 ? (
                     filteredLocations.map(loc => (
@@ -682,15 +694,15 @@ const App: React.FC = () => {
                           setShowSearchSuggestions(false);
                           setSearchQuery('');
                         }}
-                        className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors text-left"
+                        className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors text-left"
                       >
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                          <div className="w-8 h-8 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center">
                             <MapPin size={16} />
                           </div>
                           <div>
-                            <div className="text-sm font-bold text-slate-900">{loc.name}</div>
-                            <div className="text-xs text-slate-500">{loc.category}</div>
+                            <div className="text-sm font-bold text-slate-900 dark:text-white">{loc.name}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{loc.category}</div>
                           </div>
                         </div>
                         <ArrowRight size={14} className="text-slate-300" />
@@ -701,7 +713,7 @@ const App: React.FC = () => {
                       <p className="text-sm text-slate-500">No exact location matches.</p>
                       <button
                         onClick={() => handleSendMessage(searchQuery)}
-                        className="mt-2 text-blue-600 text-xs font-bold hover:underline"
+                        className="mt-2 text-blue-600 dark:text-blue-400 text-xs font-bold hover:underline"
                       >
                         Ask DelsuAI instead?
                       </button>
@@ -715,7 +727,7 @@ const App: React.FC = () => {
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
-              className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-600"
+              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300"
               title="Toggle Theme"
             >
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -724,12 +736,12 @@ const App: React.FC = () => {
             {currentUser ? (
               <div className="flex items-center space-x-3">
                 <div className="hidden md:flex flex-col items-end">
-                  <span className="text-sm font-semibold text-slate-900">{currentUser.fullName}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">{currentUser.role}</span>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white">{currentUser.fullName}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">{currentUser.role}</span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-9 h-9 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 transition-colors"
+                  className="w-9 h-9 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/60 transition-colors"
                   title="Logout"
                 >
                   <LogOut size={16} />
@@ -755,7 +767,11 @@ const App: React.FC = () => {
               <div className="max-w-3xl mx-auto space-y-6">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm border ${msg.role === 'user' ? 'bg-blue-600 text-white border-blue-500' : 'bg-white text-slate-800 border-slate-100'}`}>
+                    <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm border ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white border-blue-500'
+                        : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-100 dark:border-slate-700'
+                    }`}>
                       <div className="text-sm leading-relaxed whitespace-pre-wrap">
                         {msg.content.replace(/\*\*/g, '')}
                       </div>
@@ -768,7 +784,11 @@ const App: React.FC = () => {
                               setActiveTab('map');
                             }
                           }}
-                          className={`mt-3 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors ${msg.role === 'user' ? 'bg-white/10 hover:bg-white/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                          className={`mt-3 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors ${
+                            msg.role === 'user'
+                              ? 'bg-white/10 hover:bg-white/20'
+                              : 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100'
+                          }`}
                         >
                           <MapPin size={14} />
                           <span>View on Map</span>
@@ -777,95 +797,124 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 ))}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 flex items-center space-x-3">
+                      <Loader2 size={18} className="animate-spin text-blue-600" />
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Consulting DELSU campus grid...</span>
+                    </div>
+                  </div>
+                )}
                 <div ref={chatEndRef} />
               </div>
             </div>
 
-            {/* Chat Input */}
-            <div className="p-4 bg-white border-t border-slate-200">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage(chatInput);
-                }}
-                className="max-w-3xl mx-auto flex gap-2"
-              >
+            {/* Chat Input Container */}
+            <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+              <div className="max-w-3xl mx-auto flex items-center space-x-2">
                 <input
                   type="text"
-                  placeholder="Ask DelsuAI for campus assistance..."
+                  placeholder="Ask DelsuAI about faculties, halls, or navigation..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-slate-100 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(chatInput)}
+                  className="flex-1 bg-slate-100 dark:bg-slate-900 border-transparent focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-slate-700 rounded-xl px-4 py-3 text-sm transition-all outline-none"
                 />
                 <button
-                  type="submit"
-                  disabled={isLoading || !chatInput.trim()}
-                  className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => handleSendMessage(chatInput)}
+                  disabled={!chatInput.trim() || isLoading}
+                  className="bg-blue-600 text-white p-3 rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50"
                 >
-                  Send
+                  <Send size={18} />
                 </button>
-              </form>
+              </div>
             </div>
           </div>
 
           {/* CAMPUS MAP TAB */}
-          <div className={`h-full flex flex-col md:flex-row relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
-            <div className="flex-1 relative h-full">
-              <div ref={mapContainerRef} className="w-full h-full" />
+          <div className={`h-full w-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
+            <div ref={mapContainerRef} className="w-full h-full min-h-full" />
 
-              {/* Top Controls Overlay */}
-              <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
-                <button
-                  onClick={getUserLocation}
-                  className="bg-white/90 backdrop-blur-md shadow-lg text-slate-700 font-bold py-2.5 px-4 rounded-xl flex items-center space-x-2 text-xs hover:bg-white transition-all border border-slate-200"
-                >
-                  <Navigation size={16} className="text-blue-600" />
-                  <span>{locationLoading ? 'Locating...' : 'My Location'}</span>
-                </button>
-              </div>
-
-              {/* Custom Clean Zoom Buttons for Mobile */}
-              <div className="absolute bottom-6 right-4 flex flex-col space-y-2 z-10">
-                <button
-                  onClick={() => handleZoom('in')}
-                  className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-white"
-                >
-                  <Plus size={18} />
-                </button>
-                <button
-                  onClick={() => handleZoom('out')}
-                  className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-white"
-                >
-                  <Minus size={18} />
-                </button>
-              </div>
+            {/* Map Action Controls */}
+            <div className="absolute right-4 bottom-6 flex flex-col space-y-2 z-10">
+              <button
+                onClick={getUserLocation}
+                disabled={locationLoading}
+                className="w-11 h-11 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors"
+                title="Find My Location"
+              >
+                {locationLoading ? <Loader2 size={20} className="animate-spin text-blue-600" /> : <Navigation size={20} />}
+              </button>
+              <button
+                onClick={() => handleZoom('in')}
+                className="w-11 h-11 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <Plus size={20} />
+              </button>
+              <button
+                onClick={() => handleZoom('out')}
+                className="w-11 h-11 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <Minus size={20} />
+              </button>
             </div>
 
-            {/* Selected Location Details Panel */}
+            {/* Selected Location Bottom Sheet */}
             {selectedLocation && (
-              <div className="w-full md:w-80 bg-white border-l border-slate-200 p-6 flex flex-col space-y-4">
-                <h3 className="text-lg font-bold text-slate-900">{selectedLocation.name}</h3>
-                <p className="text-sm text-slate-600">{selectedLocation.description}</p>
-                <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1">
-                  <p className="font-bold text-slate-500 uppercase">Location Coordinates</p>
-                  <p className="font-mono text-slate-800">Lat: {selectedLocation.lat} Lng: {selectedLocation.lng}</p>
+              <div className="absolute left-4 right-4 bottom-6 max-w-lg mx-auto bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 z-20 animate-in slide-in-from-bottom duration-200">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{selectedLocation.name}</h3>
+                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-full inline-block mt-1">
+                      {selectedLocation.category}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedLocation(null)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleOpenExternalGoogleMaps(selectedLocation)}
-                  className="w-full bg-emerald-600 text-white py-3 px-4 rounded-xl font-bold hover:bg-emerald-700 flex items-center justify-center space-x-2 transition-all shadow-md"
-                >
-                  <Navigation size={18} />
-                  <span>Navigate in Google Maps</span>
-                  <ExternalLink size={14} className="opacity-80" />
-                </button>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
+                  {selectedLocation.description}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleOpenExternalGoogleMaps(selectedLocation)}
+                    className="flex-1 bg-blue-600 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-md hover:bg-blue-700 transition-all flex items-center justify-center space-x-2"
+                  >
+                    <span>Start Navigation</span>
+                    <ExternalLink size={14} />
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
           {/* ACADEMIC DOCS TAB */}
-          <div className={`p-8 max-w-4xl mx-auto space-y-4 ${activeTab === 'academic' ? 'block' : 'hidden'}`}>
-            <h2 className="text-2xl font-bold text-slate-900">Academic Docs</h2>
-            <p className="text-slate-600">DELSU Abraka Intelligent Campus Guidance Platform Documentation.</p>
+          <div className={`h-full overflow-y-auto p-6 ${activeTab === 'academic' ? 'block' : 'hidden'}`}>
+            <div className="max-w-3xl mx-auto bg-white dark:bg-slate-800 rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 dark:border-slate-700 space-y-6">
+              <div className="border-b border-slate-100 dark:border-slate-700 pb-4">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Academic Documentation</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  DELSU Campus Navigation & AI Intelligence Project Overview
+                </p>
+              </div>
+              <div className="prose dark:prose-invert text-sm text-slate-600 dark:text-slate-300 space-y-4">
+                <p>
+                  DelsuAI is designed to address campus navigation challenges at Delta State University (DELSU), Abraka. It combines real-time geospatial processing with LLM capability to help students and visitors locate faculties, lecture theaters, halls, and administrative offices effortlessly.
+                </p>
+                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-2">Key Highlights</h4>
+                  <ul className="list-disc pl-5 space-y-1 text-xs">
+                    <li>Integrated Google Maps Engine with location fallback</li>
+                    <li>Gemini AI model integration for natural queries</li>
+                    <li>Full support for Web and Android cross-platform builds</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
