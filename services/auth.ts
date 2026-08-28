@@ -1,128 +1,93 @@
-
 import { User, AuthResponse } from '../types';
+import { supabase } from './supabase';
 
 /**
  * AUTH SERVICE FOR DELSU AI PROJECT
- * In a production environment, these methods would call a Node.js/Express API.
- * For this implementation, we use localStorage to simulate a database.
+ * Connected directly to Supabase Authentication
  */
 
-const USERS_DB_KEY = 'delsu_ai_users_db';
-const AUTH_TOKEN_KEY = 'delsu_ai_auth_token';
 const CURRENT_USER_KEY = 'delsu_ai_current_user';
 
+// Helper to standardise Supabase user data into your app's User type
+const formatUser = (sbUser: any): User => {
+  return {
+    id: sbUser.id,
+    fullName: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
+    email: sbUser.email || '',
+    role: sbUser.user_metadata?.role || 'student',
+  };
+};
+
 export const authService = {
-  // Register a new user
+  // Register a new user in Supabase
   register: async (fullName: string, email: string, password: string, role: string): Promise<AuthResponse> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const db = JSON.parse(localStorage.getItem(USERS_DB_KEY) || '[]');
-    
-    if (db.find((u: any) => u.email === email)) {
-      throw new Error('User with this email already exists.');
-    }
-
-    const newUser = {
-      id: Math.random().toString(36).substr(2, 9),
-      fullName,
+    const { data, error } = await supabase.auth.signUp({
       email,
-      password: btoa(password), // Simple simulation of hashing
-      role,
-      resetToken: null,
-      resetTokenExpiry: null
-    };
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          role: role,
+        },
+      },
+    });
 
-    db.push(newUser);
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(db));
+    if (error) throw new Error(error.message);
+    if (!data.user) throw new Error('Registration failed.');
 
-    const response: AuthResponse = {
-      user: { id: newUser.id, fullName: newUser.fullName, email: newUser.email, role: newUser.role as any },
-      token: 'jwt-simulated-' + newUser.id
-    };
+    const user = formatUser(data.user);
+    const token = data.session?.access_token || 'pending-email-verification';
 
-    localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
-    
-    return response;
+    // Store formatted user locally for instant app initialization
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+
+    return { user, token };
   },
 
-  // Login existing user
+  // Login existing user with Supabase
   login: async (email: string, password: string): Promise<AuthResponse> => {
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    const db = JSON.parse(localStorage.getItem(USERS_DB_KEY) || '[]');
-    const user = db.find((u: any) => u.email === email && u.password === btoa(password));
+    if (error) throw new Error(error.message);
+    if (!data.user) throw new Error('Login failed.');
 
-    if (!user) {
-      throw new Error('Invalid email or password.');
-    }
+    const user = formatUser(data.user);
+    const token = data.session?.access_token || '';
 
-    const response: AuthResponse = {
-      user: { id: user.id, fullName: user.fullName, email: user.email, role: user.role as any },
-      token: 'jwt-simulated-' + user.id
-    };
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
 
-    localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(response.user));
-    
-    return response;
+    return { user, token };
   },
 
-  // --- NEW: FORGOT PASSWORD REQUEST ---
+  // Request password reset email from Supabase
   forgotPassword: async (email: string): Promise<string> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const db = JSON.parse(localStorage.getItem(USERS_DB_KEY) || '[]');
-    const userIndex = db.findIndex((u: any) => u.email === email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
 
-    if (userIndex === -1) {
-      throw new Error('No account found with that email address.');
-    }
-
-    // Generate secure token and 15-min expiry
-    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const expiry = Date.now() + 15 * 60 * 1000;
-
-    db[userIndex].resetToken = token;
-    db[userIndex].resetTokenExpiry = expiry;
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(db));
-
-    // MOCK EMAIL LOGGING
-    console.log("%c--- DELSU AI SECURE MAIL SYSTEM ---", "color: #2563eb; font-weight: bold;");
-    console.log(`To: ${email}`);
-    console.log(`Subject: Password Reset Request`);
-    console.log(`Click this token to reset: ${token}`);
-    console.log("%c-----------------------------------", "color: #2563eb; font-weight: bold;");
-
-    return token;
+    if (error) throw new Error(error.message);
+    return 'Password reset link sent.';
   },
 
-  // --- NEW: RESET PASSWORD ACTION ---
+  // Reset password action
   resetPassword: async (token: string, newPassword: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const db = JSON.parse(localStorage.getItem(USERS_DB_KEY) || '[]');
-    const userIndex = db.findIndex((u: any) => 
-      u.resetToken === token && u.resetTokenExpiry > Date.now()
-    );
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
 
-    if (userIndex === -1) {
-      throw new Error('Invalid or expired reset token.');
-    }
-
-    // Update password and clear tokens
-    db[userIndex].password = btoa(newPassword);
-    db[userIndex].resetToken = null;
-    db[userIndex].resetTokenExpiry = null;
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(db));
+    if (error) throw new Error(error.message);
   },
 
-  // Logout
-  logout: () => {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
+  // Logout from Supabase session
+  logout: async () => {
     localStorage.removeItem(CURRENT_USER_KEY);
+    await supabase.auth.signOut();
   },
 
-  // Get current session
+  // Get current active session user
   getCurrentUser: (): User | null => {
     const user = localStorage.getItem(CURRENT_USER_KEY);
     return user ? JSON.parse(user) : null;

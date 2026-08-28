@@ -16,7 +16,9 @@ import {
   MailCheck,
   ExternalLink,
   Plus,
-  Minus
+  Minus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Location, Message, User } from './types';
 import { DELSU_LOCATIONS } from './data/locations';
@@ -80,6 +82,7 @@ const App: React.FC = () => {
   const [authFormData, setAuthFormData] = useState({ fullName: '', email: '', password: '', role: 'student', token: '' });
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // GOOGLE MAPS REFS
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +91,14 @@ const App: React.FC = () => {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Switch Auth Modes & Reset Errors
+  const switchAuthMode = (mode: 'login' | 'signup' | 'forgot' | 'reset') => {
+    setAuthMode(mode);
+    setAuthError('');
+    setAuthSuccess('');
+    setShowPassword(false);
+  };
 
   // Initialize Dark / Light Theme
   useEffect(() => {
@@ -279,7 +290,7 @@ const App: React.FC = () => {
       } else if (authMode === 'reset') {
         await authService.resetPassword(authFormData.token, authFormData.password);
         setAuthSuccess('Password updated successfully! You can now login.');
-        setTimeout(() => setAuthMode('login'), 2000);
+        setTimeout(() => switchAuthMode('login'), 2000);
       }
 
       if (authMode !== 'reset' && authMode !== 'forgot') {
@@ -354,48 +365,89 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* AUTH MODAL */}
+      {/* IMPROVED AUTH MODAL */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="p-8">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-900">
-                  {authMode === 'login' && 'Welcome Back'}
-                  {authMode === 'signup' && 'Join DelsuAI'}
-                  {authMode === 'forgot' && 'Reset Password'}
-                  {authMode === 'reset' && 'Create New Password'}
-                </h2>
-                <button
-                  onClick={() => { setIsAuthModalOpen(false); setAuthError(''); setAuthSuccess(''); }}
-                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400"
-                >
-                  <X size={20} />
-                </button>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
+            {/* Header Branding */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative">
+              <button
+                onClick={() => { setIsAuthModalOpen(false); setAuthError(''); setAuthSuccess(''); }}
+                className="absolute top-4 right-4 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-3">
+                <Navigation size={24} className="text-white" />
               </div>
+              <h2 className="text-2xl font-bold tracking-tight">
+                {authMode === 'login' && 'Welcome Back'}
+                {authMode === 'signup' && 'Create Account'}
+                {authMode === 'forgot' && 'Reset Password'}
+                {authMode === 'reset' && 'Set New Password'}
+              </h2>
+              <p className="text-xs text-blue-100 mt-1">
+                {authMode === 'login' && 'Sign in to access your DELSU campus guide & saved routes'}
+                {authMode === 'signup' && 'Join DelsuAI to get personalized campus assistance'}
+                {authMode === 'forgot' && 'Enter your campus email to receive a password reset link'}
+                {authMode === 'reset' && 'Enter your reset token and new secure password'}
+              </p>
+            </div>
 
+            <div className="p-6 md:p-8">
               <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {/* Full Name (Sign Up only) */}
                 {authMode === 'signup' && (
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Full Name</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Full Name</label>
                     <input
                       required
                       type="text"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                      placeholder="e.g. John Doe"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                      placeholder="Your full name"
                       value={authFormData.fullName}
                       onChange={(e) => setAuthFormData({ ...authFormData, fullName: e.target.value })}
                     />
                   </div>
                 )}
 
+                {/* Role Selector (Sign Up only) */}
+                {authMode === 'signup' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Role</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAuthFormData({ ...authFormData, role: 'student' })}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${authFormData.role === 'student'
+                          ? 'bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                      >
+                        Student
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuthFormData({ ...authFormData, role: 'staff' })}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${authFormData.role === 'staff'
+                          ? 'bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                          }`}
+                      >
+                        Staff / Lecturer
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email Input */}
                 {(authMode === 'login' || authMode === 'signup' || authMode === 'forgot') && (
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Campus Email</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Campus Email</label>
                     <input
                       required
                       type="email"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
                       placeholder="email@delsu.edu.ng"
                       value={authFormData.email}
                       onChange={(e) => setAuthFormData({ ...authFormData, email: e.target.value })}
@@ -403,31 +455,75 @@ const App: React.FC = () => {
                   </div>
                 )}
 
+                {/* Password Input */}
                 {(authMode === 'login' || authMode === 'signup' || authMode === 'reset') && (
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Password</label>
+                      {authMode === 'login' && (
+                        <button
+                          type="button"
+                          onClick={() => switchAuthMode('forgot')}
+                          className="text-xs font-bold text-blue-600 hover:underline"
+                        >
+                          Forgot?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        required
+                        type={showPassword ? 'text' : 'password'}
+                        className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                        placeholder="••••••••"
+                        value={authFormData.password}
+                        onChange={(e) => setAuthFormData({ ...authFormData, password: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Token Input for Reset */}
+                {authMode === 'reset' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Reset Token</label>
                     <input
                       required
-                      type="password"
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                      placeholder="••••••••"
-                      value={authFormData.password}
-                      onChange={(e) => setAuthFormData({ ...authFormData, password: e.target.value })}
+                      type="text"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm text-slate-800"
+                      placeholder="Enter reset token"
+                      value={authFormData.token}
+                      onChange={(e) => setAuthFormData({ ...authFormData, token: e.target.value })}
                     />
                   </div>
                 )}
 
-                {authError && <div className="text-red-500 text-xs font-bold bg-red-50 p-3 rounded-lg">{authError}</div>}
-                {authSuccess && (
-                  <div className="text-emerald-600 text-xs font-bold bg-emerald-50 p-3 rounded-lg flex items-center gap-2">
-                    <MailCheck size={16} />
-                    {authSuccess}
+                {/* Error Banner */}
+                {authError && (
+                  <div className="text-red-600 text-xs font-semibold bg-red-50 border border-red-100 p-3 rounded-xl">
+                    ⚠️ {authError}
                   </div>
                 )}
 
+                {/* Success Banner */}
+                {authSuccess && (
+                  <div className="text-emerald-700 text-xs font-semibold bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex items-center gap-2">
+                    <MailCheck size={16} />
+                    <span>{authSuccess}</span>
+                  </div>
+                )}
+
+                {/* Action Button */}
                 <button
                   disabled={isLoading}
-                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
+                  className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-50 text-sm mt-2"
                 >
                   {isLoading
                     ? 'Processing...'
@@ -440,6 +536,43 @@ const App: React.FC = () => {
                           : 'Update Password'}
                 </button>
               </form>
+
+              {/* Toggle Routes */}
+              <div className="mt-6 pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
+                {authMode === 'login' && (
+                  <p>
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => switchAuthMode('signup')}
+                      className="font-bold text-blue-600 hover:underline ml-1"
+                    >
+                      Sign Up
+                    </button>
+                  </p>
+                )}
+                {authMode === 'signup' && (
+                  <p>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => switchAuthMode('login')}
+                      className="font-bold text-blue-600 hover:underline ml-1"
+                    >
+                      Sign In
+                    </button>
+                  </p>
+                )}
+                {(authMode === 'forgot' || authMode === 'reset') && (
+                  <button
+                    type="button"
+                    onClick={() => switchAuthMode('login')}
+                    className="font-bold text-blue-600 hover:underline"
+                  >
+                    ← Back to Sign In
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -604,7 +737,7 @@ const App: React.FC = () => {
               </div>
             ) : (
               <button
-                onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }}
+                onClick={() => { switchAuthMode('login'); setIsAuthModalOpen(true); }}
                 className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition-all"
               >
                 <LogIn size={18} />

@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DELSU_LOCATIONS } from '../data/locations';
+import { fetchLocations } from './db';
 import { Message } from '../types';
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -13,7 +13,10 @@ const STOP_WORDS = new Set([
 ]);
 
 export async function getCampusAssistance(userPrompt: string, chatHistory: Message[]) {
-  // 1. Primary Engine: Live Gemini API (Handles all conversational nuance seamlessly)
+  // Fetch real-time campus dataset from Supabase
+  const locations = await fetchLocations();
+
+  // 1. Primary Engine: Live Gemini API
   if (genAI) {
     try {
       const model = genAI.getGenerativeModel({
@@ -24,7 +27,7 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
         When users ask for locations or directions, reference the provided campus dataset to give accurate guidance.
         
         Campus Locations Dataset:
-        ${JSON.stringify(DELSU_LOCATIONS)}`
+        ${JSON.stringify(locations)}`
       });
 
       const formattedHistory = chatHistory.map(msg => ({
@@ -57,10 +60,10 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
   const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
   const cleanQuery = normalize(userPrompt);
 
-  // Classify Intent: Universal Greeting Matcher (handles hi, hii, hello, sup, wassup, howfa, etc.)
+  // Intent: Universal Greeting Matcher
   const isGreeting = /^(h[ea]+ll?o+|h+i+|h+e+y+|h+e+y+a|sup|w+a+s+u+p+|h+o+w+f+a+r?|yo+|greetings|good\s*(morning|afternoon|evening))/i.test(cleanQuery);
 
-  // Classify Intent: Gratitude & Pleasantries (handles thanks, thank you, cool, awesome, how are you, etc.)
+  // Intent: Gratitude & Pleasantries
   const isGratitudeOrPleasantry = /^(th+a+n+k+s?|thx|cool|awesome|great|ok|okay|alright|how\s*are\s*you|how\s*is\s*your\s*day)/i.test(cleanQuery);
 
   if (isGreeting) {
@@ -77,17 +80,17 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
     };
   }
 
-  // Intent: Campus Location Keyword Search
+  // Intent: Campus Location Keyword Search (Queries Supabase data array)
   const keywords = cleanQuery.split(/\s+/).filter(word => word.length > 1 && !STOP_WORDS.has(word));
 
   let bestMatch = null;
   let maxScore = 0;
 
-  for (const loc of DELSU_LOCATIONS) {
+  for (const loc of locations) {
     let score = 0;
     const nameNorm = normalize(loc.name);
     const categoryNorm = normalize(loc.category);
-    const aliasesNorm = loc.aliases.map(normalize);
+    const aliasesNorm = (loc.aliases || []).map(normalize);
 
     if (cleanQuery.includes(nameNorm)) score += 10;
 
