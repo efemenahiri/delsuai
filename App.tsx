@@ -365,7 +365,7 @@ const App: React.FC = () => {
     : [];
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
       {/* IMPROVED AUTH MODAL */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
@@ -644,7 +644,7 @@ const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative">
         {/* Header - Configured with Mobile Safe Padding */}
-        <header className="h-16 pt-2 pb-2 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
+        <header className="pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
           <button
             className="lg:hidden text-slate-600 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100"
             onClick={() => setIsSidebarOpen(true)}
@@ -823,7 +823,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Input Form */}
-            <div className="p-4 bg-white border-t border-slate-200">
+            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-white border-t border-slate-200">
               <div className="max-w-3xl mx-auto flex items-center space-x-2">
                 <input
                   type="text"
