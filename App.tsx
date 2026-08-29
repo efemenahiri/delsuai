@@ -24,6 +24,14 @@ import { Location, Message, User } from './types';
 import { DELSU_LOCATIONS } from './data/locations';
 import { getCampusAssistance } from './services/gemini';
 import { authService } from './services/auth';
+import ReactMarkdown from 'react-markdown';
+
+const SUGGESTIONS = [
+  "Where is the Senate Building?",
+  "Tell me about DELSU history",
+  "Which campus has the Faculty of Law?",
+  "Find Site 3 locations",
+];
 
 // Helper Component for Sidebar Items
 const SidebarItem = ({
@@ -63,14 +71,7 @@ const App: React.FC = () => {
   const userMarkerRef = useRef<any>(null);
 
   // CHAT STATE
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Hello! I am DelsuAI, your campus guide. How can I help you navigate DELSU today?',
-      timestamp: Date.now()
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
@@ -753,11 +754,41 @@ const App: React.FC = () => {
           <div className={`h-full flex flex-col ${activeTab === 'assistant' ? 'block' : 'hidden'}`}>
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
               <div className="max-w-3xl mx-auto space-y-6">
+                {messages.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                      <Navigation size={32} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">
+                      Welcome to DelsuAI Campus Guide
+                    </h2>
+                    <p className="text-slate-500 text-sm max-w-md mx-auto mb-8">
+                      Ask anything about Delta State University (Abraka) campuses, faculties, administrative blocks, or historical details.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl mx-auto">
+                      {SUGGESTIONS.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSendMessage(suggestion)}
+                          className="p-3 text-left text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:border-blue-500 hover:text-blue-600 hover:shadow-sm transition-all flex items-center justify-between group"
+                        >
+                          <span>{suggestion}</span>
+                          <ArrowRight size={14} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm border ${msg.role === 'user' ? 'bg-blue-600 text-white border-blue-500' : 'bg-white text-slate-800 border-slate-100'}`}>
-                      <div className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {msg.content.replace(/\*\*/g, '')}
+                      <div className={`text-sm leading-relaxed ${msg.role === 'user' ? 'text-white' : 'prose prose-sm max-w-none text-slate-800'}`}>
+                        {msg.role === 'user' ? (
+                          msg.content
+                        ) : (
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        )}
                       </div>
                       {msg.locationId && (
                         <button
@@ -768,7 +799,7 @@ const App: React.FC = () => {
                               setActiveTab('map');
                             }
                           }}
-                          className={`mt-3 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors ${msg.role === 'user' ? 'bg-white/10 hover:bg-white/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                          className={`mt-3 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg transition-colors ${msg.role === 'user' ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                         >
                           <MapPin size={14} />
                           <span>View on Map</span>
@@ -777,95 +808,119 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 ))}
+
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center space-x-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-600 animate-bounce" />
+                      <div className="w-2 h-2 rounded-full bg-blue-600 animate-bounce [animation-delay:0.2s]" />
+                      <div className="w-2 h-2 rounded-full bg-blue-600 animate-bounce [animation-delay:0.4s]" />
+                    </div>
+                  </div>
+                )}
                 <div ref={chatEndRef} />
               </div>
             </div>
 
-            {/* Chat Input */}
+            {/* Input Form */}
             <div className="p-4 bg-white border-t border-slate-200">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage(chatInput);
-                }}
-                className="max-w-3xl mx-auto flex gap-2"
-              >
+              <div className="max-w-3xl mx-auto flex items-center space-x-2">
                 <input
                   type="text"
-                  placeholder="Ask DelsuAI for campus assistance..."
+                  placeholder="Ask DelsuAI about campus locations or history..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-slate-100 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(chatInput)}
+                  className="flex-1 bg-slate-100 border-transparent focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 rounded-xl px-4 py-3 text-sm transition-all outline-none"
                 />
                 <button
-                  type="submit"
-                  disabled={isLoading || !chatInput.trim()}
-                  className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => handleSendMessage(chatInput)}
+                  disabled={!chatInput.trim() || isLoading}
+                  className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all font-semibold"
                 >
-                  Send
+                  <ArrowRight size={18} />
                 </button>
-              </form>
+              </div>
             </div>
           </div>
 
           {/* CAMPUS MAP TAB */}
-          <div className={`h-full flex flex-col md:flex-row relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
-            <div className="flex-1 relative h-full">
-              <div ref={mapContainerRef} className="w-full h-full" />
+          <div className={`h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
+            <div ref={mapContainerRef} className="w-full h-full bg-slate-200" />
 
-              {/* Top Controls Overlay */}
-              <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
-                <button
-                  onClick={getUserLocation}
-                  className="bg-white/90 backdrop-blur-md shadow-lg text-slate-700 font-bold py-2.5 px-4 rounded-xl flex items-center space-x-2 text-xs hover:bg-white transition-all border border-slate-200"
-                >
-                  <Navigation size={16} className="text-blue-600" />
-                  <span>{locationLoading ? 'Locating...' : 'My Location'}</span>
-                </button>
-              </div>
-
-              {/* Custom Clean Zoom Buttons for Mobile */}
-              <div className="absolute bottom-6 right-4 flex flex-col space-y-2 z-10">
-                <button
-                  onClick={() => handleZoom('in')}
-                  className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-white"
-                >
-                  <Plus size={18} />
-                </button>
-                <button
-                  onClick={() => handleZoom('out')}
-                  className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-white"
-                >
-                  <Minus size={18} />
-                </button>
-              </div>
+            {/* Map Controls */}
+            <div className="absolute right-4 top-4 flex flex-col space-y-2 z-10">
+              <button
+                onClick={() => handleZoom('in')}
+                className="w-10 h-10 bg-white rounded-xl shadow-md border border-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <Plus size={18} />
+              </button>
+              <button
+                onClick={() => handleZoom('out')}
+                className="w-10 h-10 bg-white rounded-xl shadow-md border border-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <Minus size={18} />
+              </button>
+              <button
+                onClick={getUserLocation}
+                disabled={locationLoading}
+                className="w-10 h-10 bg-white rounded-xl shadow-md border border-slate-100 flex items-center justify-center text-blue-600 hover:bg-slate-50 transition-colors"
+                title="Current Position"
+              >
+                <Navigation size={18} className={locationLoading ? 'animate-spin' : ''} />
+              </button>
             </div>
 
-            {/* Selected Location Details Panel */}
+            {/* Selected Location Card Overlay */}
             {selectedLocation && (
-              <div className="w-full md:w-80 bg-white border-l border-slate-200 p-6 flex flex-col space-y-4">
-                <h3 className="text-lg font-bold text-slate-900">{selectedLocation.name}</h3>
-                <p className="text-sm text-slate-600">{selectedLocation.description}</p>
-                <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1">
-                  <p className="font-bold text-slate-500 uppercase">Location Coordinates</p>
-                  <p className="font-mono text-slate-800">Lat: {selectedLocation.lat} Lng: {selectedLocation.lng}</p>
+              <div className="absolute bottom-6 left-4 right-4 max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-20">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                      {selectedLocation.category}
+                    </span>
+                    <h3 className="text-lg font-bold text-slate-900 mt-1">{selectedLocation.name}</h3>
+                  </div>
+                  <button
+                    onClick={() => setSelectedLocation(null)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
+                <p className="text-xs text-slate-600 mb-4 leading-relaxed">{selectedLocation.description}</p>
                 <button
                   onClick={() => handleOpenExternalGoogleMaps(selectedLocation)}
-                  className="w-full bg-emerald-600 text-white py-3 px-4 rounded-xl font-bold hover:bg-emerald-700 flex items-center justify-center space-x-2 transition-all shadow-md"
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 hover:bg-blue-700 transition-colors shadow-sm"
                 >
-                  <Navigation size={18} />
-                  <span>Navigate in Google Maps</span>
-                  <ExternalLink size={14} className="opacity-80" />
+                  <span>Start Walking Directions</span>
+                  <ExternalLink size={14} />
                 </button>
               </div>
             )}
           </div>
 
           {/* ACADEMIC DOCS TAB */}
-          <div className={`p-8 max-w-4xl mx-auto space-y-4 ${activeTab === 'academic' ? 'block' : 'hidden'}`}>
-            <h2 className="text-2xl font-bold text-slate-900">Academic Docs</h2>
-            <p className="text-slate-600">DELSU Abraka Intelligent Campus Guidance Platform Documentation.</p>
+          <div className={`h-full overflow-y-auto p-6 ${activeTab === 'academic' ? 'block' : 'hidden'}`}>
+            <div className="max-w-4xl mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h2 className="text-2xl font-bold text-slate-900">Project Documentation</h2>
+                <p className="text-xs text-slate-500 mt-1">DelsuAI: Intelligent Campus Navigation & Assistance Framework</p>
+              </div>
+              <div className="prose prose-slate max-w-none text-sm space-y-4">
+                <h3 className="text-lg font-bold text-slate-800">Abstract</h3>
+                <p className="text-slate-600 leading-relaxed">
+                  Navigating the complex physical layouts of multi-campus institutions like Delta State University (DELSU), Abraka, often poses challenges to new students, visitors, and academic staff. DelsuAI integrates modern conversational AI with precise geospatial visualization tools to deliver real-time campus assistance.
+                </p>
+                <h3 className="text-lg font-bold text-slate-800">Architecture Overview</h3>
+                <ul className="list-disc pl-5 space-y-2 text-slate-600">
+                  <li><strong>Frontend Architecture:</strong> Modular React TypeScript application styled with Tailwind CSS and enhanced with Lucide icons.</li>
+                  <li><strong>Intelligence Layer:</strong> Powered by the Gemini API for natural language understanding and instant conversational intent extraction.</li>
+                  <li><strong>Geospatial Engine:</strong> Custom Google Maps API integration mapping DELSU landmarks, faculties, administrative hubs, and residential zones.</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       </main>
