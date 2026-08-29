@@ -645,13 +645,27 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative">
         {/* Header - Configured with Mobile Safe Padding */}
         <header className="pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
-          <button
-            className="lg:hidden text-slate-600 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <Menu size={22} />
-          </button>
+          {/* Left: Mobile Menu & Logo */}
+          <div className="flex items-center space-x-3">
+            <button
+              className="lg:hidden text-slate-600 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <Menu size={22} />
+            </button>
 
+            {/* Brand name for Mobile View */}
+            <div className="flex items-center space-x-2 lg:hidden">
+              <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm">
+                <Navigation size={16} />
+              </div>
+              <span className="font-bold text-slate-900 tracking-tight text-base">
+                Delsu<span className="text-blue-600">AI</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Center Search Input (Desktop Only) */}
           <div className="flex-1 max-w-xl mx-auto px-4 lg:block hidden relative" ref={searchRef}>
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
@@ -713,6 +727,7 @@ const App: React.FC = () => {
             )}
           </div>
 
+          {/* Right Actions */}
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
