@@ -14,7 +14,7 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
     const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.8-flash',
       systemInstruction: `You are DelsuAI, an intelligent, friendly, and all-around helpful AI assistant for Delta State University (DELSU), Abraka.
 
 YOUR CAPABILITIES:

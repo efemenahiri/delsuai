@@ -128,39 +128,81 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- GOOGLE MAPS INITIALIZATION ---
+  // --- DYNAMICALLY LOAD GOOGLE MAPS SCRIPT & INITIALIZE ---
   useEffect(() => {
-    const google = (window as any).google;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-    if (mapContainerRef.current && !googleMapInstance.current && google?.maps) {
-      const map = new google.maps.Map(mapContainerRef.current, {
-        center: { lat: 5.7952, lng: 6.1068 },
-        zoom: 16,
-        disableDefaultUI: true, // Clean clutter-free UI for mobile
-        zoomControl: false,
-        fullscreenControl: false,
-        mapTypeControl: false,
-        streetViewControl: false,
-      });
+    if (!apiKey) {
+      console.error("VITE_GOOGLE_MAPS_API_KEY is missing from environment variables!");
+      return;
+    }
 
-      googleMapInstance.current = map;
-
-      if (selectedLocation) {
-        const marker = new google.maps.Marker({
-          position: { lat: selectedLocation.lat, lng: selectedLocation.lng },
-          map,
-          title: selectedLocation.name,
-          animation: google.maps.Animation.DROP,
+    const initMap = () => {
+      const google = (window as any).google;
+      if (mapContainerRef.current && !googleMapInstance.current && google?.maps) {
+        const map = new google.maps.Map(mapContainerRef.current, {
+          center: { lat: 5.7952, lng: 6.1068 },
+          zoom: 16,
+          disableDefaultUI: true,
+          zoomControl: false,
+          fullscreenControl: false,
+          mapTypeControl: false,
+          streetViewControl: false,
         });
 
-        markersRef.current.push(marker);
-        map.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
-        map.setZoom(18);
+        googleMapInstance.current = map;
+        setMapLoaded(true);
       }
+    };
 
-      setMapLoaded(true);
+    // If script is already present on window
+    if ((window as any).google?.maps) {
+      initMap();
+      return;
     }
-  }, [selectedLocation]);
+
+    // Check if script element already exists in document
+    const existingScript = document.getElementById('google-maps-script');
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.id = 'google-maps-script';
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        initMap();
+      };
+      script.onerror = () => {
+        console.error("Failed to load Google Maps script. Check your API Key.");
+      };
+      document.head.appendChild(script);
+    } else {
+      existingScript.addEventListener('load', initMap);
+    }
+  }, []);
+
+  // Handle Selected Location Markers on Map
+  useEffect(() => {
+    const google = (window as any).google;
+    if (!googleMapInstance.current || !google?.maps) return;
+
+    // Clear previous markers
+    markersRef.current.forEach((m) => m.setMap(null));
+    markersRef.current = [];
+
+    if (selectedLocation) {
+      const marker = new google.maps.Marker({
+        position: { lat: selectedLocation.lat, lng: selectedLocation.lng },
+        map: googleMapInstance.current,
+        title: selectedLocation.name,
+        animation: google.maps.Animation.DROP,
+      });
+
+      markersRef.current.push(marker);
+      googleMapInstance.current.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
+      googleMapInstance.current.setZoom(18);
+    }
+  }, [selectedLocation, mapLoaded]);
 
   // Resize calculation when switching to map tab
   useEffect(() => {
@@ -173,15 +215,7 @@ const App: React.FC = () => {
         }
       }
     }
-  }, [activeTab]);
-
-  // Pan to Selected Location
-  useEffect(() => {
-    if (googleMapInstance.current && selectedLocation) {
-      googleMapInstance.current.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
-      googleMapInstance.current.setZoom(18);
-    }
-  }, [selectedLocation]);
+  }, [activeTab, selectedLocation]);
 
   // Get user's current GPS position
   const getUserLocation = () => {
@@ -366,11 +400,10 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
-      {/* IMPROVED AUTH MODAL */}
+      {/* AUTH MODAL */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
-            {/* Header Branding */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative">
               <button
                 onClick={() => { setIsAuthModalOpen(false); setAuthError(''); setAuthSuccess(''); }}
@@ -397,7 +430,6 @@ const App: React.FC = () => {
 
             <div className="p-6 md:p-8">
               <form onSubmit={handleAuthSubmit} className="space-y-4">
-                {/* Full Name (Sign Up only) */}
                 {authMode === 'signup' && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Full Name</label>
@@ -412,7 +444,6 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Role Selector (Sign Up only) */}
                 {authMode === 'signup' && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Role</label>
@@ -441,7 +472,6 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Email Input */}
                 {(authMode === 'login' || authMode === 'signup' || authMode === 'forgot') && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Campus Email</label>
@@ -456,7 +486,6 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Password Input */}
                 {(authMode === 'login' || authMode === 'signup' || authMode === 'reset') && (
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
@@ -491,7 +520,6 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Token Input for Reset */}
                 {authMode === 'reset' && (
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Reset Token</label>
@@ -506,14 +534,12 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Error Banner */}
                 {authError && (
                   <div className="text-red-600 text-xs font-semibold bg-red-50 border border-red-100 p-3 rounded-xl">
                     ⚠️ {authError}
                   </div>
                 )}
 
-                {/* Success Banner */}
                 {authSuccess && (
                   <div className="text-emerald-700 text-xs font-semibold bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex items-center gap-2">
                     <MailCheck size={16} />
@@ -521,7 +547,6 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                {/* Action Button */}
                 <button
                   disabled={isLoading}
                   className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-50 text-sm mt-2"
@@ -538,7 +563,6 @@ const App: React.FC = () => {
                 </button>
               </form>
 
-              {/* Toggle Routes */}
               <div className="mt-6 pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
                 {authMode === 'login' && (
                   <p>
@@ -643,9 +667,7 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 relative">
-        {/* Header - Configured with Mobile Safe Padding */}
         <header className="pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
-          {/* Left: Mobile Menu & Logo */}
           <div className="flex items-center space-x-3">
             <button
               className="lg:hidden text-slate-600 hover:text-slate-900 p-2 rounded-lg hover:bg-slate-100"
@@ -654,7 +676,6 @@ const App: React.FC = () => {
               <Menu size={22} />
             </button>
 
-            {/* Brand name for Mobile View */}
             <div className="flex items-center space-x-2 lg:hidden">
               <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm">
                 <Navigation size={16} />
@@ -665,7 +686,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Center Search Input (Desktop Only) */}
           <div className="flex-1 max-w-xl mx-auto px-4 lg:block hidden relative" ref={searchRef}>
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
@@ -683,7 +703,6 @@ const App: React.FC = () => {
               />
             </div>
 
-            {/* Search Suggestions Dropdown */}
             {showSearchSuggestions && searchQuery.trim() && (
               <div className="absolute top-full left-4 right-4 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50">
                 <div className="p-2">
@@ -727,7 +746,6 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Right Actions */}
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
@@ -837,7 +855,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Input Form */}
             <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-white border-t border-slate-200">
               <div className="max-w-3xl mx-auto flex items-center space-x-2">
                 <input
@@ -861,9 +878,8 @@ const App: React.FC = () => {
 
           {/* CAMPUS MAP TAB */}
           <div className={`h-full relative ${activeTab === 'map' ? 'block' : 'hidden'}`}>
-            <div ref={mapContainerRef} className="w-full h-full bg-slate-200" />
+            <div ref={mapContainerRef} className="w-full h-full bg-slate-200 min-h-[400px]" />
 
-            {/* Map Controls */}
             <div className="absolute right-4 top-4 flex flex-col space-y-2 z-10">
               <button
                 onClick={() => handleZoom('in')}
@@ -887,7 +903,6 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            {/* Selected Location Card Overlay */}
             {selectedLocation && (
               <div className="absolute bottom-6 left-4 right-4 max-w-md mx-auto bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-20">
                 <div className="flex justify-between items-start mb-2">
