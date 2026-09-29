@@ -20,7 +20,6 @@ export async function getCampusAssistance(userPrompt: string, chatHistory: Messa
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Using gemini-2.0-flash for proper v1beta endpoint support
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash",
       systemInstruction: `You are DelsuAI, an intelligent, friendly, and all-around helpful AI assistant for Delta State University (DELSU), Abraka.
@@ -33,25 +32,22 @@ YOUR CAPABILITIES:
 If recommending a specific location from the dataset, append "[LOCATION: location_id]" to the end of your response.`
     });
 
-    // Format chat history properly
     let history = chatHistory.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
     }));
 
-    // Ensure history starts with a 'user' message
     const firstUserIndex = history.findIndex(msg => msg.role === 'user');
     if (firstUserIndex !== -1) {
       history = history.slice(firstUserIndex);
     } else {
-      history = []; // Clear history if there are no user messages yet
+      history = [];
     }
 
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(userPrompt);
     let responseText = result.response.text();
 
-    // Parse location tag if returned
     let suggestedLocationId: string | null = null;
     const locationMatch = responseText.match(/\[LOCATION:\s*([a-zA-Z0-9_-]+)\]/);
     if (locationMatch) {
@@ -66,21 +62,19 @@ If recommending a specific location from the dataset, append "[LOCATION: locatio
   } catch (error) {
     console.error('Gemini Execution Error:', error);
 
-    // EMERGENCY DEFENSE FALLBACK
-    // If Google API fails (404, 429, 503, or network outage), return a local response
     const lowerPrompt = userPrompt.toLowerCase();
     let fallbackText = "DelsuAI Assistant: Delta State University (DELSU), Abraka was established in 1992. You can search or select any facility from the interactive campus map.";
     let fallbackLocationId: string | null = null;
 
     if (lowerPrompt.includes("senate")) {
       fallbackText = "The Senate Building is located at Site 2, administrative block. It houses the Vice-Chancellor's office, Registrar, and principal officers.";
-      fallbackLocationId = "senate_building";
+      fallbackLocationId = "senate";
     } else if (lowerPrompt.includes("library")) {
       fallbackText = "The Main University Library is located at Site 2, adjacent to the Faculty of Science.";
-      fallbackLocationId = "main_library";
+      fallbackLocationId = "library";
     } else if (lowerPrompt.includes("science")) {
       fallbackText = "The Faculty of Science is located at Site 2, housing computer science, chemistry, and physics departments.";
-      fallbackLocationId = "faculty_science";
+      fallbackLocationId = "science";
     }
 
     return {

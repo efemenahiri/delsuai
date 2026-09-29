@@ -47,10 +47,11 @@ const SidebarItem = ({
 }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${active
-      ? 'bg-blue-600 text-white shadow-lg'
-      : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
-      }`}
+    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
+      active
+        ? 'bg-blue-600 text-white shadow-lg'
+        : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
+    }`}
   >
     <Icon size={20} />
     <span className="font-medium">{label}</span>
@@ -155,13 +156,11 @@ const App: React.FC = () => {
       }
     };
 
-    // If script is already present on window
     if ((window as any).google?.maps) {
       initMap();
       return;
     }
 
-    // Check if script element already exists in document
     const existingScript = document.getElementById('google-maps-script');
     if (!existingScript) {
       const script = document.createElement('script');
@@ -186,7 +185,6 @@ const App: React.FC = () => {
     const google = (window as any).google;
     if (!googleMapInstance.current || !google?.maps) return;
 
-    // Clear previous markers
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
@@ -286,14 +284,12 @@ const App: React.FC = () => {
     };
   }, [userLocation, mapLoaded]);
 
-  // Handle Custom Map Zoom
   const handleZoom = (direction: 'in' | 'out') => {
     if (!googleMapInstance.current) return;
     const currentZoom = googleMapInstance.current.getZoom();
     googleMapInstance.current.setZoom(direction === 'in' ? currentZoom + 1 : currentZoom - 1);
   };
 
-  // Turn-by-turn Navigation in External Google Maps
   const handleOpenExternalGoogleMaps = (location: Location) => {
     let mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}&travelmode=walking&dir_action=navigate`;
 
@@ -304,7 +300,6 @@ const App: React.FC = () => {
     window.open(mapsUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Auth Form Handler
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -369,13 +364,18 @@ const App: React.FC = () => {
         role: 'assistant',
         content: response.answer,
         timestamp: Date.now(),
-        locationId: response.suggestedLocationId
+        locationId: response.suggestedLocationId || undefined
       };
 
       setMessages(prev => [...prev, aiMsg]);
 
       if (response.suggestedLocationId) {
-        const found = DELSU_LOCATIONS.find(l => l.id === response.suggestedLocationId);
+        const locId = response.suggestedLocationId.toLowerCase();
+        const found = DELSU_LOCATIONS.find(l => 
+          l.id.toLowerCase() === locId || 
+          l.name.toLowerCase().includes(locId) ||
+          l.aliases?.some(a => a.toLowerCase().includes(locId))
+        );
         if (found) setSelectedLocation(found);
       }
     } catch (error) {
@@ -451,20 +451,22 @@ const App: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setAuthFormData({ ...authFormData, role: 'student' })}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${authFormData.role === 'student'
-                          ? 'bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          authFormData.role === 'student'
+                            ? 'bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
                       >
                         Student
                       </button>
                       <button
                         type="button"
                         onClick={() => setAuthFormData({ ...authFormData, role: 'staff' })}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${authFormData.role === 'staff'
-                          ? 'bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                          }`}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          authFormData.role === 'staff'
+                            ? 'bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
                       >
                         Staff / Lecturer
                       </button>
@@ -554,12 +556,12 @@ const App: React.FC = () => {
                   {isLoading
                     ? 'Processing...'
                     : authMode === 'login'
-                      ? 'Sign In'
-                      : authMode === 'signup'
-                        ? 'Create Account'
-                        : authMode === 'forgot'
-                          ? 'Send Reset Link'
-                          : 'Update Password'}
+                    ? 'Sign In'
+                    : authMode === 'signup'
+                    ? 'Create Account'
+                    : authMode === 'forgot'
+                    ? 'Send Reset Link'
+                    : 'Update Password'}
                 </button>
               </form>
 
@@ -613,8 +615,9 @@ const App: React.FC = () => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-50 transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        className={`fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-50 transition-transform duration-300 lg:relative lg:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         <div className="flex flex-col h-full">
           <div className="p-6 flex items-center space-x-3 border-b border-slate-100">
@@ -826,9 +829,18 @@ const App: React.FC = () => {
                       {msg.locationId && (
                         <button
                           onClick={() => {
-                            const loc = DELSU_LOCATIONS.find(l => l.id === msg.locationId);
+                            const targetId = msg.locationId?.toLowerCase() || '';
+                            const loc = DELSU_LOCATIONS.find(l => 
+                              l.id.toLowerCase() === targetId ||
+                              l.name.toLowerCase().includes(targetId) ||
+                              l.aliases?.some(a => a.toLowerCase().includes(targetId))
+                            );
                             if (loc) {
                               setSelectedLocation(loc);
+                              setActiveTab('map');
+                            } else if (DELSU_LOCATIONS.length > 0) {
+                              // Direct Fallback to first matched landmark
+                              setSelectedLocation(DELSU_LOCATIONS[0]);
                               setActiveTab('map');
                             }
                           }}
